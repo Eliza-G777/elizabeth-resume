@@ -1,0 +1,9 @@
+{
+  "name": "elizabeth-taye-site",
+  "private": true,
+  "type": "module",
+  "description": "Résumé website with an admin editor, hosted on Netlify",
+  "dependencies": {
+    "@netlify/blobs": "10.4.2"
+  }
+}
