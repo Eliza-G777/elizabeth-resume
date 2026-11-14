@@ -84,3 +84,8 @@ code { font-family: var(--mono); font-size: 0.86em; background: var(--bg); borde
 #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 0.92rem; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 20; max-width: calc(100vw - 32px); }
 #toast.show { opacity: 1; }
 #toast.bad { background: #b3261e; color: #fff; }
+
+.fcard .pdf { position: relative; overflow: hidden; }
+.fcard .pdf.has-thumb { display: block; background: #fff; }
+.fcard .pdf img.pdf-page { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.fcard .pdf.has-thumb::after { content: "PDF"; position: absolute; right: 8px; bottom: 8px; font-size: 0.7rem; background: var(--gold); color: #fff; padding: 1px 6px; border-radius: 5px; }

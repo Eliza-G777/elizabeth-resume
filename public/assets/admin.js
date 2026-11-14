@@ -250,6 +250,7 @@
     if (!panel) return;
     const views = { profile: profileView, education: educationView, achievements: achievementsView, skills: skillsView, settings: settingsView };
     panel.replaceChildren(...views[state.tab]());
+    window.PdfThumb?.attachAll(panel);
   }
 
   // ---------- Profile ----------
@@ -346,7 +347,7 @@
     if (a) {
       const progress = h("div", { class: "progress" });
       const files = h("div", { class: "files" }, a.files.map((f, i) => h("div", { class: "fcard" },
-        /^image\//.test(f.type) ? h("img", { src: fileUrl(f.key), alt: f.caption || f.name, loading: "lazy" }) : h("a", { href: fileUrl(f.key), target: "_blank", rel: "noopener" }, h("div", { class: "pdf" }, "PDF")),
+        /^image\//.test(f.type) ? h("img", { src: fileUrl(f.key), alt: f.caption || f.name, loading: "lazy" }) : h("a", { href: fileUrl(f.key), target: "_blank", rel: "noopener", "aria-label": `Open ${f.name}` }, h("div", { class: "pdf", "data-pdf": fileUrl(f.key) }, "PDF")),
         h("div", { class: "body" },
           h("div", { class: "name" }, f.name),
           h("input", { type: "text", "aria-label": `Caption for ${f.name}`, placeholder: "Caption (e.g. Certificate of completion)", value: f.caption, oninput: (e) => { f.caption = e.target.value; markDirty(); } }),

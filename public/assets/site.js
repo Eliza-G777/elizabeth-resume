@@ -52,7 +52,7 @@
     const thumb = first
       ? isImage(first)
         ? h("img", { class: "thumb", src: fileUrl(first.key), alt: "", loading: "lazy" })
-        : h("div", { class: "thumb pdf", "aria-hidden": "true" }, "PDF")
+        : h("div", { class: "thumb pdf", "data-pdf": fileUrl(first.key), "data-alt": "" }, "PDF")
       : null;
     const count = (a.files || []).length;
     return h("a", { class: "card", href: achUrl(a) },
@@ -197,7 +197,7 @@
           ? h("div", { class: "gallery" }, files.map((f) => h("figure", { class: "doc" },
               isImage(f)
                 ? h("button", { class: "open", type: "button", "aria-label": `Enlarge ${f.caption || f.name}`, onclick: () => openImage(f) }, h("img", { src: fileUrl(f.key), alt: f.caption || f.name, loading: "lazy" }))
-                : h("a", { href: fileUrl(f.key), target: "_blank", rel: "noopener", "aria-label": `Open ${f.name}` }, h("div", { class: "pdfbox" }, "PDF")),
+                : h("a", { href: fileUrl(f.key), target: "_blank", rel: "noopener", "aria-label": `Open ${f.caption || f.name} (PDF)` }, h("div", { class: "pdfbox", "data-pdf": fileUrl(f.key), "data-alt": `First page of ${f.caption || f.name}` }, "PDF")),
               h("figcaption", {}, f.caption || f.name, h("small", {}, h("a", { href: fileUrl(f.key), target: "_blank", rel: "noopener" }, isImage(f) ? "Open image" : "Open PDF"))))))
           : h("p", { class: "empty" }, "Certificates for this achievement will appear here.")
       ),
@@ -209,6 +209,9 @@
 
   const root = document.getElementById("app");
   loadContent()
-    .then((c) => (document.body.dataset.page === "detail" ? renderDetail(c, root) : renderHome(c, root)))
+    .then((c) => {
+      if (document.body.dataset.page === "detail") renderDetail(c, root); else renderHome(c, root);
+      window.PdfThumb?.attachAll(root);
+    })
     .catch((e) => root.replaceChildren(h("div", { class: "error-box" }, h("h1", {}, "Something went wrong"), h("p", {}, e.message), h("p", {}, "Refresh the page to try again."))));
 })();
