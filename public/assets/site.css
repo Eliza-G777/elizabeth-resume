@@ -37,7 +37,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-
 h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.shell { max-width: 1120px; margin: 0 auto; padding: 48px 24px 80px; display: grid; grid-template-columns: 320px 1fr; gap: 64px; }
+.shell { max-width: 1440px; margin: 0 auto; padding: 48px 40px 80px; display: grid; grid-template-columns: 380px 1fr; gap: 72px; }
 @media (max-width: 860px) { .shell { grid-template-columns: 1fr; gap: 40px; padding: 28px 18px 64px; } }
 
 /* Identity column */
