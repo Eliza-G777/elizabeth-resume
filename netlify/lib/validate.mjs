@@ -21,7 +21,8 @@ export function cleanContent(input) {
     name: str(p.name, 120), initials: str(p.initials, 4), tagline: str(p.tagline, 300),
     location: str(p.location, 120), email: str(p.email, 200), phone: str(p.phone, 60),
     showPhone: Boolean(p.showPhone), website: url(p.website), github: url(p.github), linkedin: url(p.linkedin),
-    photo: fileKey(p.photo), about: str(p.about),
+    photo: fileKey(p.photo), resume: fileKey(p.resume), about: str(p.about),
+    intendedMajor: str(p.intendedMajor, 120), gradYear: str(p.gradYear, 40),
     facts: (Array.isArray(p.facts) ? p.facts : []).slice(0, 6).map((f) => ({ value: str(f?.value, 20), label: str(f?.label, 120) }))
   };
 
@@ -62,11 +63,18 @@ export function cleanContent(input) {
     files: cleanFiles(d?.files)
   }));
 
+  const projects = (Array.isArray(input.projects) ? input.projects : []).slice(0, 60).map((x, i) => ({
+    id: uniq(x?.id, `project-${i + 1}`),
+    title: str(x?.title, 200) || "Untitled project", category: str(x?.category, 60), date: str(x?.date, 80),
+    summary: str(x?.summary, 1500), details: strList(x?.details, 20), tags: strList(x?.tags, 30),
+    github: url(x?.github), link: url(x?.link), files: cleanFiles(x?.files)
+  }));
+
   const skills = (Array.isArray(input.skills) ? input.skills : []).slice(0, 12).map((s, i) => ({
     id: uniq(s?.id, `skills-${i + 1}`), group: str(s?.group, 100), items: strList(s?.items, 40)
   }));
 
-  return { version: 1, updatedAt: new Date().toISOString(), profile, education, achievements, documents, skills };
+  return { version: 1, updatedAt: new Date().toISOString(), profile, education, achievements, projects, documents, skills };
 }
 
 // What visitors who aren't logged in may see: documents marked hidden are removed.
@@ -78,6 +86,8 @@ export function publicView(content) {
 export function publicFileKeys(content) {
   const keys = new Set();
   if (content.profile?.photo) keys.add(content.profile.photo);
+  if (content.profile?.resume) keys.add(content.profile.resume);
+  for (const x of content.projects || []) for (const f of x.files || []) keys.add(f.key);
   for (const a of content.achievements || []) for (const f of a.files || []) keys.add(f.key);
   for (const d of publicView(content).documents) for (const f of d.files || []) keys.add(f.key);
   return keys;

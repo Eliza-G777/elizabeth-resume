@@ -89,3 +89,7 @@ code { font-family: var(--mono); font-size: 0.86em; background: var(--bg); borde
 .fcard .pdf.has-thumb { display: block; background: #fff; }
 .fcard .pdf img.pdf-page { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
 .fcard .pdf.has-thumb::after { content: "PDF"; position: absolute; right: 8px; bottom: 8px; font-size: 0.7rem; background: var(--gold); color: #fff; padding: 1px 6px; border-radius: 5px; }
+
+.github-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start; }
+.github-row > .btn { margin-top: 26px; }
+@media (max-width: 640px) { .github-row { grid-template-columns: 1fr; } .github-row > .btn { margin-top: 0; } }

@@ -12,6 +12,12 @@
   to = "/achievement.html"
   status = 200
 
+# Project pages: /projects/<id>
+[[redirects]]
+  from = "/projects/*"
+  to = "/project.html"
+  status = 200
+
 # Document pages: /documents/<id>
 [[redirects]]
   from = "/documents/*"
@@ -30,3 +36,9 @@
   [headers.values]
     X-Robots-Tag = "noindex, nofollow"
     Cache-Control = "no-store"
+
+# Anything else that doesn't exist
+[[redirects]]
+  from = "/*"
+  to = "/404.html"
+  status = 404

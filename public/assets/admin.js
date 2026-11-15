@@ -1,10 +1,10 @@
 // Admin editor. The password check and every save happen on the server; this page only edits a copy of the content.
 (() => {
   const root = document.getElementById("admin");
-  const SECTION_LABELS = { programs: "Programs & fellowships", leadership: "Leadership & activities", honors: "Not shown on the site" };
-  const TABS = [["profile", "Profile & photo"], ["education", "Education"], ["achievements", "Achievements"], ["documents", "Transcripts & certificates"], ["skills", "Skills"], ["settings", "Backup & security"]];
+  const SECTION_LABELS = { programs: "Programs & fellowships", leadership: "Leadership & activities", honors: "Honors (shown under Certificates)" };
+  const TABS = [["profile", "Profile & photo"], ["education", "Education"], ["achievements", "Achievements"], ["projects", "Projects"], ["documents", "Transcripts & certificates"], ["skills", "Skills"], ["settings", "Backup & security"]];
 
-  const state = { content: null, dirty: false, saving: false, tab: "achievements", achIndex: 0, eduIndex: 0, docIndex: 0, pendingDeletes: new Set() };
+  const state = { content: null, dirty: false, saving: false, tab: "achievements", achIndex: 0, eduIndex: 0, docIndex: 0, projIndex: 0, pendingDeletes: new Set() };
 
   // ---------- helpers ----------
   function h(tag, attrs = {}, ...kids) {
@@ -191,7 +191,7 @@
     root.replaceChildren(h("p", { class: "loading" }, "Loading content…"));
     const res = await fetch("/api/content", { cache: "no-store" });
     state.content = await res.json();
-    for (const k of ["education", "achievements", "documents", "skills"]) state.content[k] ||= [];
+    for (const k of ["education", "achievements", "projects", "documents", "skills"]) state.content[k] ||= [];
     state.content.profile ||= {};
     state.content.profile.facts ||= [];
     renderEditor();
@@ -207,7 +207,7 @@
       const { content } = await api("/api/content", { method: "PUT", body: JSON.stringify(state.content) });
       state.content = content;
       // Files removed in the editor are deleted only once the save has succeeded.
-      const stillUsed = new Set([state.content.profile.photo, ...[...state.content.achievements, ...(state.content.documents || [])].flatMap((x) => x.files.map((f) => f.key))]);
+      const stillUsed = new Set([state.content.profile.photo, state.content.profile.resume, ...[...state.content.achievements, ...(state.content.projects || []), ...(state.content.documents || [])].flatMap((x) => x.files.map((f) => f.key))]);
       for (const key of [...state.pendingDeletes]) {
         if (stillUsed.has(key)) { state.pendingDeletes.delete(key); continue; }
         try { await api(`/api/files/${encodeURIComponent(key)}`, { method: "DELETE" }); state.pendingDeletes.delete(key); } catch { /* retried on next save */ }
@@ -248,7 +248,7 @@
   function renderTab() {
     const panel = document.getElementById("panel");
     if (!panel) return;
-    const views = { profile: profileView, education: educationView, achievements: achievementsView, documents: documentsView, skills: skillsView, settings: settingsView };
+    const views = { profile: profileView, education: educationView, achievements: achievementsView, projects: projectsView, documents: documentsView, skills: skillsView, settings: settingsView };
     panel.replaceChildren(...views[state.tab]());
     window.PdfThumb?.attachAll(panel);
   }
@@ -312,9 +312,13 @@
             toast("Photo uploaded. Select Save changes to publish it.");
           } catch (e) { progress.textContent = ""; toast(e.message, true); }
         } }), progress),
+      resumeBox(p),
       h("div", { class: "box" }, h("h3", {}, "Name and introduction"),
         h("div", { class: "grid2" }, field("Full name", p, "name"), field("Initials", p, "initials", { hint: "Shown when there's no photo." })),
         field("Tagline", p, "tagline", { hint: "One sentence under your name." }),
+        h("div", { class: "grid2" },
+          field("Intended major", p, "intendedMajor", { placeholder: "Computer Science major · Mathematics minor", hint: "Shown as a badge beside the photo." }),
+          field("Class year", p, "gradYear", { placeholder: "Class of 2027" })),
         field("About", p, "about", { type: "textarea", rows: 7 })),
       h("div", { class: "box" }, h("h3", {}, "Contact and links"),
         h("div", { class: "grid2" },
@@ -415,6 +419,102 @@
         list.unshift({ id: `${slugify(title)}-${Date.now().toString(36)}`, section: "honors", category: "Certificate", title, org: "", dates: "", year: String(new Date().getFullYear()), track: "", summary: "", bullets: [], tags: [], files: [] });
         state.achIndex = 0; markDirty(); renderTab();
       } }, "+ Add achievement")),
+      h("div", { class: "split" }, itemsBox, form)
+    ];
+  }
+
+  // Résumé PDF: one file, shown as a "Résumé PDF" button on the profile
+  function resumeBox(p) {
+    const progress = h("div", { class: "progress" });
+    return h("div", { class: "box" }, h("h3", {}, "Résumé PDF"),
+      h("small", { class: "field" }, "Optional. Adds a Résumé PDF button under the name, so colleges can download a one-page résumé."),
+      p.resume
+        ? h("div", { class: "row" }, h("a", { class: "btn", href: fileUrl(p.resume), target: "_blank", rel: "noopener" }, "Open current résumé ↗"),
+            deleteButton("Remove résumé", () => { state.pendingDeletes.add(p.resume); p.resume = null; markDirty(); renderTab(); }))
+        : null,
+      dropZone({ multiple: false, accept: "application/pdf", label: p.resume ? "Drop a new résumé PDF to replace it" : "Drop the résumé PDF here", onFiles: async ([file]) => {
+        if (file.type !== "application/pdf") { toast("The résumé must be a PDF.", true); return; }
+        progress.textContent = `Uploading ${file.name}…`;
+        try {
+          const saved = await uploadOne(file);
+          if (p.resume) state.pendingDeletes.add(p.resume);
+          p.resume = saved.key; markDirty(); renderTab();
+          toast("Résumé uploaded. Select Save changes to publish it.");
+        } catch (e) { progress.textContent = ""; toast(e.message, true); }
+      } }), progress);
+  }
+
+  // ---------- Projects ----------
+  function parseRepo(u) {
+    const m = (u || "").trim().match(/^https?:\/\/(www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(\.git)?\/?$/i);
+    return m ? { owner: m[2], repo: m[3] } : null;
+  }
+
+  async function fillFromGitHub(x) {
+    const r = parseRepo(x.github);
+    if (!r) { toast("Paste a repository link like https://github.com/name/project first.", true); return; }
+    try {
+      const res = await fetch(`https://api.github.com/repos/${r.owner}/${r.repo}`, { headers: { accept: "application/vnd.github+json" } });
+      if (res.status === 404) throw new Error("GitHub can't find that repository. Check the link and that the repo is public.");
+      if (!res.ok) throw new Error(`GitHub didn't answer (error ${res.status}). Try again in a few minutes.`);
+      const info = await res.json();
+      const filled = [];
+      if (!x.title || /^New project/.test(x.title)) { x.title = info.name.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); filled.push("title"); }
+      if (!x.summary && info.description) { x.summary = info.description; filled.push("summary"); }
+      if (!x.link && info.homepage) { x.link = info.homepage; filled.push("live link"); }
+      if (!x.date && info.created_at) { x.date = String(new Date(info.created_at).getFullYear()); filled.push("year"); }
+      const tags = [...new Set([info.language, ...(info.topics || [])].filter(Boolean))];
+      if (!x.tags.length && tags.length) { x.tags = tags.slice(0, 8); filled.push("tags"); }
+      if (!filled.length) { toast("Everything was already filled in, so nothing changed."); return; }
+      markDirty(); renderTab();
+      toast(`Filled ${filled.join(", ")} from GitHub. Review it, then save.`);
+    } catch (e) { toast(e.message, true); }
+  }
+
+  function projectsView() {
+    const list = state.content.projects;
+    state.projIndex = Math.min(state.projIndex, Math.max(0, list.length - 1));
+    const x = list[state.projIndex];
+
+    const itemsBox = h("div", { class: "list" }, list.map((y, i) => h("button", { type: "button", class: "item", "aria-current": String(i === state.projIndex), onclick: () => { state.projIndex = i; renderTab(); } },
+      h("span", { "data-proj-title": i }, y.title || "Untitled"),
+      h("small", {}, [y.category, y.date, y.github ? "GitHub" : "", y.files.length ? `${y.files.length} file${y.files.length > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ")))));
+
+    let form = h("p", { class: "empty" }, "No projects yet. Add one, or paste a GitHub link and fill it in automatically.");
+    if (x) {
+      form = h("div", { class: "panel" },
+        h("div", { class: "box" },
+          h("div", { class: "row end" },
+            h("a", { class: "btn small", href: `/projects/${encodeURIComponent(x.id)}`, target: "_blank", rel: "noopener" }, "View page ↗"),
+            h("button", { type: "button", class: "btn small", onclick: () => { state.projIndex = move(list, state.projIndex, -1); renderTab(); } }, "↑ Move up"),
+            h("button", { type: "button", class: "btn small", onclick: () => { state.projIndex = move(list, state.projIndex, 1); renderTab(); } }, "↓ Move down"),
+            deleteButton("Delete project", () => { x.files.forEach((f) => state.pendingDeletes.add(f.key)); list.splice(state.projIndex, 1); markDirty(); renderTab(); })),
+          h("div", { class: "github-row" },
+            field("GitHub repository", x, "github", { type: "url", placeholder: "https://github.com/elsabetgenetu/project-name", hint: "Optional. Public repos show live details (language, stars, last update) on the project page." }),
+            h("button", { type: "button", class: "btn", onclick: () => fillFromGitHub(x) }, "Fill in from GitHub")),
+          field("Title", x, "title", { onChange: (v) => { const el = itemsBox.querySelector(`[data-proj-title="${state.projIndex}"]`); if (el) el.textContent = v || "Untitled"; } }),
+          h("div", { class: "grid2" },
+            field("Type", x, "category", { placeholder: "School project, Research, Personal, Club…" }),
+            field("Date", x, "date", { placeholder: "2025, or Mar – May 2026" }),
+            field("Live link", x, "link", { type: "url", placeholder: "https://…", hint: "Optional: a website, video or demo." })),
+          field("Summary", x, "summary", { type: "textarea", rows: 3, hint: "One or two sentences: what it is and why it matters." }),
+          field("About this project", x, "details", { type: "textarea", rows: 5, list: true, hint: "One point per line: the problem, what you built, what you learned, results." }),
+          tagField("Built with", x, "tags", "Languages, tools and topics, separated with commas.")),
+        h("div", { class: "box" },
+          h("h3", {}, `Files (${x.files.length})`),
+          h("small", { class: "field" }, "Screenshots, photos, a poster or a report PDF. The first image becomes the card picture."),
+          filesEditor(x.files, "Drop project screenshots, photos or PDFs here")),
+        h("div", { class: "box" },
+          field("Page address", x, "id", { hint: "Used in the link /projects/… Changing it breaks links you've already shared.", onChange: (v) => { x.id = slugify(v); } })));
+    }
+
+    return [
+      h("h2", {}, "Projects"),
+      h("p", { class: "intro" }, "School, club, research or personal projects. Each one gets a card on the home page and its own page with files and a GitHub link."),
+      h("div", { class: "row" }, h("button", { type: "button", class: "btn", onclick: () => {
+        list.unshift({ id: `project-${Date.now().toString(36)}`, title: "New project", category: "", date: "", summary: "", details: [], tags: [], github: "", link: "", files: [] });
+        state.projIndex = 0; markDirty(); renderTab();
+      } }, "+ Add project")),
       h("div", { class: "split" }, itemsBox, form)
     ];
   }

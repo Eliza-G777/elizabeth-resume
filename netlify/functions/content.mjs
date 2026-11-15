@@ -10,7 +10,16 @@ export default async (req) => {
 
   if (req.method === "GET") {
     const saved = (await store.get("content", { type: "json" })) ?? defaultContent;
-    const content = { ...saved, documents: saved.documents || [] };
+    // Content saved before a feature existed gets that feature's defaults
+    const content = {
+      ...saved,
+      profile: { ...saved.profile },
+      projects: saved.projects || [],
+      documents: saved.documents || []
+    };
+    for (const k of ["intendedMajor", "gradYear"]) {
+      if (content.profile[k] === undefined) content.profile[k] = defaultContent.profile[k];
+    }
     // The admin sees hidden documents too; everyone else gets the public view.
     return json(isAdmin(req) ? content : publicView(content));
   }

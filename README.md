@@ -4,7 +4,9 @@ A résumé site for college applications, hosted on Netlify:
 
 - **Home page** (`/`): profile, education timeline, programs, leadership, honors and skills.
 - **Achievement pages** (`/achievements/<id>`): one page per achievement, with photos and PDFs of its certificates.
-- **Admin** (`/admin`): password-protected editor to change any text, upload the profile photo, and upload credentials to each achievement.
+- **Project pages** (`/projects/<id>`): school or personal projects with files and a GitHub link (live repo details from GitHub's public API).
+- **Document pages** (`/documents/<id>`): transcripts and certificates, with every PDF page shown in a viewer. Documents can be hidden from the public.
+- **Admin** (`/admin`): password-protected editor for all text, the profile photo, a résumé PDF, projects (with "Fill in from GitHub"), transcripts, certificates and achievement credentials.
 
 Edits and uploads are saved in Netlify Blobs (Netlify's built-in storage), so changes go live without touching GitHub.
 

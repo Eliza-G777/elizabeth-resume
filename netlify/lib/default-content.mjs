@@ -13,6 +13,9 @@ export const defaultContent = {
     github: "https://github.com/elsabetgenetu",
     linkedin: "",
     photo: null,
+    resume: null,
+    intendedMajor: "Computer Science major · Mathematics minor",
+    gradYear: "Class of 2027",
     about:
       "I am a top-performing Grade 12 student who has consistently ranked first in my class, with strong foundations in mathematics, programming, data structures and algorithmic problem-solving. Through AddisCoder and Yale's Young African and Global Scholars programs, I have studied algorithms, human-centered design and technology for community impact. I want to combine mathematics, computer engineering and entrepreneurship to build scalable solutions to real-world problems.",
     facts: [
@@ -107,6 +110,7 @@ export const defaultContent = {
       track: "", summary: "Ranked 1st in the zone in the Grade 8 regional exams, the top performer across the region.", bullets: [], tags: [], files: []
     }
   ],
+  projects: [],
   documents: [],
   skills: [
     { id: "lang", group: "Programming languages", items: ["Python (advanced)", "Algorithms", "Data structures", "OOP", "HTML / CSS"] },
