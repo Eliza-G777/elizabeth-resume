@@ -1,7 +1,7 @@
 // Admin editor. The password check and every save happen on the server; this page only edits a copy of the content.
 (() => {
   const root = document.getElementById("admin");
-  const SECTION_LABELS = { programs: "Programs & fellowships", leadership: "Leadership & activities", honors: "Honors & certificates" };
+  const SECTION_LABELS = { programs: "Programs & fellowships", leadership: "Leadership & activities", honors: "Not shown on the site" };
   const TABS = [["profile", "Profile & photo"], ["education", "Education"], ["achievements", "Achievements"], ["documents", "Transcripts & certificates"], ["skills", "Skills"], ["settings", "Backup & security"]];
 
   const state = { content: null, dirty: false, saving: false, tab: "achievements", achIndex: 0, eduIndex: 0, docIndex: 0, pendingDeletes: new Set() };

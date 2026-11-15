@@ -2,8 +2,8 @@
 (() => {
   const SECTIONS = [
     { key: "programs", title: "Academic programs & fellowships" },
-    { key: "leadership", title: "Leadership & activities" },
-    { key: "honors", title: "Honors & certificates" }
+    { key: "leadership", title: "Leadership & activities" }
+    // "honors" items are kept in the admin but no longer shown on the site
   ];
 
   function h(tag, attrs = {}, ...kids) {
@@ -23,6 +23,7 @@
   const safeUrl = (u) => (typeof u === "string" && /^https?:\/\//i.test(u) ? u : null);
   const fileUrl = (key) => `/files/${encodeURIComponent(key)}`;
   const achUrl = (a) => `/achievements/${encodeURIComponent(a.id)}`;
+  const VISIBLE = new Set(SECTIONS.map((x) => x.key));
   const docUrl = (d) => `/documents/${encodeURIComponent(d.id)}`;
   const DOC_KINDS = [
     { key: "transcript", title: "Transcripts", empty: "No transcripts added yet." },
@@ -81,6 +82,20 @@
     return isImage(f)
       ? h("img", { class: "docthumb", src: fileUrl(f.key), alt: "", loading: "lazy" })
       : h("div", { class: "docthumb pdf", "data-pdf": fileUrl(f.key), "data-alt": "" }, "PDF");
+  }
+
+  function fileSummary(files) {
+    const n = files.length;
+    const pdfs = files.filter((f) => !isImage(f)).length;
+    const kind = pdfs === n ? "PDF" : pdfs === 0 ? (n === 1 ? "image" : "images") : "files";
+    return n === 1 ? `1 ${kind === "images" ? "image" : kind}` : `${n} ${kind === "PDF" ? "PDFs" : kind}`;
+  }
+
+  function docRow(d) {
+    return h("li", {}, h("a", { href: docUrl(d) },
+      h("span", { class: "yr" }, d.year),
+      h("div", {}, d.title, h("small", {}, [d.issuer, d.date].filter(Boolean).join(" · "))),
+      h("span", { class: "go" }, `${fileSummary(d.files || [])} →`)));
   }
 
   function docCard(d) {
@@ -164,7 +179,7 @@
           if (!items.length) return null;
           return h("div", { class: "subcat", id: `${k.key}s` },
             h("h3", { class: "subcat-title" }, k.title, h("span", { class: "count" }, String(items.length))),
-            h("div", { class: "docgrid" }, items.map(docCard)));
+            h("ul", { class: "honors doclist" }, items.map(docRow)));
         })));
     }
 
@@ -213,7 +228,9 @@
   function renderDetail(c, root) {
     const params = new URLSearchParams(location.search);
     const id = params.get("id") || decodeURIComponent(location.pathname.split("/").filter(Boolean).pop() || "");
-    const list = c.achievements || [];
+    const all = c.achievements || [];
+    const target = all.find((a) => a.id === id);
+    const list = all.filter((a) => VISIBLE.has(a.section) || a === target);
     const i = list.findIndex((a) => a.id === id);
     const p = c.profile || {};
     if (i < 0) {
@@ -251,6 +268,37 @@
     ));
   }
 
+  // Full-width viewer: each file in its own panel; PDFs are drawn page by page
+  function viewer(files) {
+    if (!files.length) return h("p", { class: "empty" }, "The file for this document will appear here.");
+    const sheets = files.map((f, n) => {
+      const label = f.caption || f.name;
+      const pages = h("span", { class: "when" }, isImage(f) ? "Image" : "PDF");
+      const body = isImage(f)
+        ? h("button", { class: "sheet-open", type: "button", "aria-label": `Enlarge ${label}`, onclick: () => openImage(f) }, h("img", { class: "sheet-img", src: fileUrl(f.key), alt: label }))
+        : h("div", { class: "pdf-pages", "data-pdf-pages": fileUrl(f.key) }, h("p", { class: "loading-pages" }, "Loading pages…"));
+      return h("section", { class: "sheet", id: `file-${n + 1}` },
+        h("header", {},
+          h("div", {}, h("span", { class: "sheet-num" }, String(n + 1).padStart(2, "0")), h("strong", {}, label), " ", pages),
+          h("a", { class: "sheet-link", href: fileUrl(f.key), target: "_blank", rel: "noopener" }, "Open original ↗")),
+        h("div", { class: "sheet-body" }, body));
+    });
+    return h("div", { class: "viewer" },
+      files.length > 1 && h("nav", { class: "file-index", "aria-label": "Files in this document" },
+        h("span", { class: "when" }, `${files.length} files`),
+        files.map((f, n) => h("a", { href: `#file-${n + 1}` }, f.caption || f.name))),
+      sheets);
+  }
+
+  function drawPdfPages(root) {
+    root.querySelectorAll("[data-pdf-pages]").forEach((box) => {
+      const label = box.closest(".sheet")?.querySelector("header .when");
+      window.PdfThumb?.renderPages(box, box.dataset.pdfPages)
+        .then((count) => { if (label && count) label.textContent = `PDF · ${count} page${count > 1 ? "s" : ""}`; })
+        .catch(() => box.replaceChildren(h("p", { class: "loading-pages" }, "This PDF can't be previewed here. ", h("a", { href: box.dataset.pdfPages, target: "_blank", rel: "noopener" }, "Open it in a new tab."))));
+    });
+  }
+
   function renderDocument(c, root) {
     const id = decodeURIComponent(location.pathname.split("/").filter(Boolean).pop() || "");
     const all = (c.documents || []).filter((x) => (x.files || []).length);
@@ -276,9 +324,9 @@
         h("h1", {}, d.title),
         d.issuer && h("div", { class: "org" }, d.issuer),
         d.note && h("p", { class: "summary" }, d.note),
-        ach && h("p", { class: "related" }, "Related achievement: ", h("a", { href: achUrl(ach) }, ach.title))
+        ach && VISIBLE.has(ach.section) && h("p", { class: "related" }, "Related achievement: ", h("a", { href: achUrl(ach) }, ach.title))
       ),
-      h("section", { class: "block" }, h("h2", {}, (d.files || []).length > 1 ? "Files" : "File"), gallery(d.files || [], "The file for this document will appear here.")),
+      viewer(d.files || []),
       h("nav", { class: "pager", "aria-label": `More ${kind.title.toLowerCase()}` },
         prev && h("a", { href: docUrl(prev) }, h("small", {}, "← Previous"), prev.title),
         next && h("a", { class: "next", href: docUrl(next) }, h("small", {}, "Next →"), next.title))
@@ -290,7 +338,7 @@
     .then((c) => {
       const page = document.body.dataset.page;
       if (page === "detail") renderDetail(c, root);
-      else if (page === "document") renderDocument(c, root);
+      else if (page === "document") { renderDocument(c, root); drawPdfPages(root); }
       else renderHome(c, root);
       window.PdfThumb?.attachAll(root);
     })
