@@ -1,4 +1,4 @@
-# Elizabeth G. Taye — Résumé Website
+# Elizabeth Taye — Résumé Website
 
 A résumé site for college applications, hosted on Netlify:
 
