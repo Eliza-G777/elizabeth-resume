@@ -30,14 +30,14 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
-body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16.5px; line-height: 1.6; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.6; }
 img { max-width: 100%; display: block; }
 a { color: var(--accent); text-underline-offset: 3px; }
 a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 4px; }
 h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.shell { max-width: 1440px; margin: 0 auto; padding: 48px 40px 80px; display: grid; grid-template-columns: 380px 1fr; gap: 72px; }
+.shell { max-width: 1280px; margin: 0 auto; padding: 44px 32px 80px; display: grid; grid-template-columns: 340px 1fr; gap: 56px; }
 @media (max-width: 860px) { .shell { grid-template-columns: 1fr; gap: 40px; padding: 28px 18px 64px; } }
 
 /* Identity column */
@@ -64,7 +64,7 @@ section { scroll-margin-top: 24px; }
 .sec-head h2 { font-size: 1.65rem; font-weight: 700; letter-spacing: -0.015em; }
 .sec-head .hint { margin-left: auto; font-size: 0.85rem; color: var(--muted); }
 
-.lede { font-size: 1.18rem; line-height: 1.6; max-width: 62ch; margin: 0 0 28px; white-space: pre-line; }
+.lede { font-size: 1.08rem; line-height: 1.6; max-width: 70ch; margin: 0 0 28px; white-space: pre-line; }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
 .fact { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
 .fact b { display: block; font-family: var(--display); font-size: 1.9rem; font-weight: 800; color: var(--accent); line-height: 1.1; }
@@ -228,7 +228,7 @@ img.pdf-page { width: 100%; height: 100%; object-fit: cover; object-position: to
 .badges { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .badge { font-size: 0.78rem; font-weight: 600; border-radius: 999px; padding: 3px 10px; border: 1px solid var(--line); color: var(--muted); background: var(--bg); }
 .badge.accent { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
-.profile h1 { font-size: clamp(2rem, 3.6vw, 2.5rem); font-weight: 800; letter-spacing: -0.025em; }
+.profile h1 { font-size: clamp(1.8rem, 3vw, 2.2rem); font-weight: 800; letter-spacing: -0.025em; }
 .profile .tagline { margin: 6px 0 0; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .btn-main, .btn-ghost { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; font-size: 0.92rem; padding: 8px 14px; border-radius: 10px; text-decoration: none; }
