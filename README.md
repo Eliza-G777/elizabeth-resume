@@ -1,7 +1,5 @@
 # Elizabeth Taye — Résumé Website
 
-A résumé site for college applications, hosted on Netlify:
-
 - **Home page** (`/`): profile, education timeline, programs, leadership, honors and skills.
 - **Achievement pages** (`/achievements/<id>`): one page per achievement, with photos and PDFs of its certificates.
 - **Project pages** (`/projects/<id>`): school or personal projects with files and a GitHub link (live repo details from GitHub's public API).
