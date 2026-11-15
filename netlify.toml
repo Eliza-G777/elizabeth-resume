@@ -12,6 +12,12 @@
   to = "/achievement.html"
   status = 200
 
+# Document pages: /documents/<id>
+[[redirects]]
+  from = "/documents/*"
+  to = "/document.html"
+  status = 200
+
 [[headers]]
   for = "/*"
   [headers.values]

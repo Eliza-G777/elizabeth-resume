@@ -5,6 +5,9 @@ const str = (v, max = MAX_TEXT) => (typeof v === "string" ? v.slice(0, max) : ""
 const strList = (v, maxItems = 50) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, maxItems).map((x) => x.slice(0, 500)) : []);
 const id = (v) => (typeof v === "string" && /^[a-z0-9-]{1,80}$/.test(v) ? v : null);
 const fileKey = (v) => (typeof v === "string" && FILE_KEY.test(v) ? v : null);
+const cleanFiles = (list) => (Array.isArray(list) ? list : []).slice(0, 30)
+  .map((f) => ({ key: fileKey(f?.key), name: str(f?.name, 200), type: str(f?.type, 40), caption: str(f?.caption, 300) }))
+  .filter((f) => f.key);
 const url = (v) => {
   const s = str(v, 500).trim();
   return s === "" || /^https?:\/\//i.test(s) ? s : "";
@@ -44,14 +47,38 @@ export function cleanContent(input) {
     category: str(a?.category, 60), title: str(a?.title, 200) || "Untitled achievement", org: str(a?.org, 200),
     dates: str(a?.dates, 80), year: str(a?.year, 12), track: str(a?.track, 200), summary: str(a?.summary, 1500),
     bullets: strList(a?.bullets, 20), tags: strList(a?.tags, 30),
-    files: (Array.isArray(a?.files) ? a.files : []).slice(0, 30)
-      .map((f) => ({ key: fileKey(f?.key), name: str(f?.name, 200), type: str(f?.type, 40), caption: str(f?.caption, 300) }))
-      .filter((f) => f.key)
+    files: cleanFiles(a?.files)
+  }));
+
+  const achievementIds = new Set(achievements.map((a) => a.id));
+  const kinds = new Set(["transcript", "certificate"]);
+  const documents = (Array.isArray(input.documents) ? input.documents : []).slice(0, 100).map((d, i) => ({
+    id: uniq(d?.id, `document-${i + 1}`),
+    kind: kinds.has(d?.kind) ? d.kind : "certificate",
+    title: str(d?.title, 200) || "Untitled document", issuer: str(d?.issuer, 200),
+    date: str(d?.date, 80), year: str(d?.year, 12), note: str(d?.note, 1500),
+    public: d?.public !== false,
+    achievementId: achievementIds.has(d?.achievementId) ? d.achievementId : "",
+    files: cleanFiles(d?.files)
   }));
 
   const skills = (Array.isArray(input.skills) ? input.skills : []).slice(0, 12).map((s, i) => ({
     id: uniq(s?.id, `skills-${i + 1}`), group: str(s?.group, 100), items: strList(s?.items, 40)
   }));
 
-  return { version: 1, updatedAt: new Date().toISOString(), profile, education, achievements, skills };
+  return { version: 1, updatedAt: new Date().toISOString(), profile, education, achievements, documents, skills };
+}
+
+// What visitors who aren't logged in may see: documents marked hidden are removed.
+export function publicView(content) {
+  return { ...content, documents: (content.documents || []).filter((d) => d.public !== false) };
+}
+
+// Files a visitor may open: the profile photo, achievement credentials and files of visible documents.
+export function publicFileKeys(content) {
+  const keys = new Set();
+  if (content.profile?.photo) keys.add(content.profile.photo);
+  for (const a of content.achievements || []) for (const f of a.files || []) keys.add(f.key);
+  for (const d of publicView(content).documents) for (const f of d.files || []) keys.add(f.key);
+  return keys;
 }

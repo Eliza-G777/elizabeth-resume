@@ -2,9 +2,9 @@
 (() => {
   const root = document.getElementById("admin");
   const SECTION_LABELS = { programs: "Programs & fellowships", leadership: "Leadership & activities", honors: "Honors & certificates" };
-  const TABS = [["profile", "Profile & photo"], ["education", "Education"], ["achievements", "Achievements"], ["skills", "Skills"], ["settings", "Backup & security"]];
+  const TABS = [["profile", "Profile & photo"], ["education", "Education"], ["achievements", "Achievements"], ["documents", "Transcripts & certificates"], ["skills", "Skills"], ["settings", "Backup & security"]];
 
-  const state = { content: null, dirty: false, saving: false, tab: "achievements", achIndex: 0, eduIndex: 0, pendingDeletes: new Set() };
+  const state = { content: null, dirty: false, saving: false, tab: "achievements", achIndex: 0, eduIndex: 0, docIndex: 0, pendingDeletes: new Set() };
 
   // ---------- helpers ----------
   function h(tag, attrs = {}, ...kids) {
@@ -191,7 +191,7 @@
     root.replaceChildren(h("p", { class: "loading" }, "Loading content…"));
     const res = await fetch("/api/content", { cache: "no-store" });
     state.content = await res.json();
-    for (const k of ["education", "achievements", "skills"]) state.content[k] ||= [];
+    for (const k of ["education", "achievements", "documents", "skills"]) state.content[k] ||= [];
     state.content.profile ||= {};
     state.content.profile.facts ||= [];
     renderEditor();
@@ -207,7 +207,7 @@
       const { content } = await api("/api/content", { method: "PUT", body: JSON.stringify(state.content) });
       state.content = content;
       // Files removed in the editor are deleted only once the save has succeeded.
-      const stillUsed = new Set([state.content.profile.photo, ...state.content.achievements.flatMap((a) => a.files.map((f) => f.key))]);
+      const stillUsed = new Set([state.content.profile.photo, ...[...state.content.achievements, ...(state.content.documents || [])].flatMap((x) => x.files.map((f) => f.key))]);
       for (const key of [...state.pendingDeletes]) {
         if (stillUsed.has(key)) { state.pendingDeletes.delete(key); continue; }
         try { await api(`/api/files/${encodeURIComponent(key)}`, { method: "DELETE" }); state.pendingDeletes.delete(key); } catch { /* retried on next save */ }
@@ -248,9 +248,38 @@
   function renderTab() {
     const panel = document.getElementById("panel");
     if (!panel) return;
-    const views = { profile: profileView, education: educationView, achievements: achievementsView, skills: skillsView, settings: settingsView };
+    const views = { profile: profileView, education: educationView, achievements: achievementsView, documents: documentsView, skills: skillsView, settings: settingsView };
     panel.replaceChildren(...views[state.tab]());
     window.PdfThumb?.attachAll(panel);
+  }
+
+  // Upload, caption, reorder and remove files in one list (used by achievements and documents)
+  function filesEditor(list, dropLabel) {
+    const progress = h("div", { class: "progress" });
+    const cards = h("div", { class: "files" }, list.map((f, i) => h("div", { class: "fcard" },
+      /^image\//.test(f.type) ? h("img", { src: fileUrl(f.key), alt: f.caption || f.name, loading: "lazy" }) : h("a", { href: fileUrl(f.key), target: "_blank", rel: "noopener", "aria-label": `Open ${f.name}` }, h("div", { class: "pdf", "data-pdf": fileUrl(f.key) }, "PDF")),
+      h("div", { class: "body" },
+        h("div", { class: "name" }, f.name),
+        h("input", { type: "text", "aria-label": `Caption for ${f.name}`, placeholder: "Caption (e.g. Certificate of completion)", value: f.caption, oninput: (e) => { f.caption = e.target.value; markDirty(); } }),
+        h("div", { class: "row" },
+          h("button", { type: "button", class: "btn small", "aria-label": "Move file earlier", onclick: () => { move(list, i, -1); renderTab(); } }, "←"),
+          h("button", { type: "button", class: "btn small", "aria-label": "Move file later", onclick: () => { move(list, i, 1); renderTab(); } }, "→"),
+          deleteButton("Remove", () => { state.pendingDeletes.add(f.key); list.splice(i, 1); markDirty(); renderTab(); }))))));
+    const onFiles = async (picked) => {
+      let done = 0;
+      for (const file of picked) {
+        progress.textContent = `Uploading ${done + 1} of ${picked.length}: ${file.name}…`;
+        try { list.push(await uploadOne(file)); done++; markDirty(); }
+        catch (e) { toast(e.message, true); }
+      }
+      progress.textContent = "";
+      if (done) toast(`${done} file${done > 1 ? "s" : ""} uploaded. Select Save changes to publish.`);
+      renderTab();
+    };
+    return h("div", { class: "panel" },
+      dropZone({ multiple: true, accept: "image/jpeg,image/png,image/webp,image/gif,application/pdf", label: dropLabel, onFiles }),
+      progress,
+      list.length > 0 && cards);
   }
 
   // ---------- Profile ----------
@@ -345,29 +374,7 @@
 
     let form = h("p", { class: "empty" }, "No achievements yet. Add one to get started.");
     if (a) {
-      const progress = h("div", { class: "progress" });
-      const files = h("div", { class: "files" }, a.files.map((f, i) => h("div", { class: "fcard" },
-        /^image\//.test(f.type) ? h("img", { src: fileUrl(f.key), alt: f.caption || f.name, loading: "lazy" }) : h("a", { href: fileUrl(f.key), target: "_blank", rel: "noopener", "aria-label": `Open ${f.name}` }, h("div", { class: "pdf", "data-pdf": fileUrl(f.key) }, "PDF")),
-        h("div", { class: "body" },
-          h("div", { class: "name" }, f.name),
-          h("input", { type: "text", "aria-label": `Caption for ${f.name}`, placeholder: "Caption (e.g. Certificate of completion)", value: f.caption, oninput: (e) => { f.caption = e.target.value; markDirty(); } }),
-          h("div", { class: "row" },
-            h("button", { type: "button", class: "btn small", "aria-label": "Move file earlier", onclick: () => { move(a.files, i, -1); renderTab(); } }, "←"),
-            h("button", { type: "button", class: "btn small", "aria-label": "Move file later", onclick: () => { move(a.files, i, 1); renderTab(); } }, "→"),
-            deleteButton("Remove", () => { state.pendingDeletes.add(f.key); a.files.splice(i, 1); markDirty(); renderTab(); }))))));
-
-      const onFiles = async (picked) => {
-        let done = 0;
-        for (const file of picked) {
-          progress.textContent = `Uploading ${done + 1} of ${picked.length}: ${file.name}…`;
-          try { a.files.push(await uploadOne(file)); done++; markDirty(); }
-          catch (e) { toast(e.message, true); }
-        }
-        progress.textContent = "";
-        if (done) toast(`${done} file${done > 1 ? "s" : ""} uploaded. Select Save changes to publish.`);
-        renderTab();
-      };
-
+      const linkedDocs = (state.content.documents || []).filter((d) => d.achievementId === a.id);
       form = h("div", { class: "panel" },
         h("div", { class: "box" },
           h("div", { class: "row end" },
@@ -388,10 +395,14 @@
           tagField("Skills and topics", a, "tags", "Separate with commas.")),
         h("div", { class: "box" },
           h("h3", {}, `Credentials (${a.files.length})`),
-          h("small", { class: "field" }, "Certificates, award letters, transcripts or photos. They appear on this achievement's own page."),
-          dropZone({ multiple: true, accept: "image/jpeg,image/png,image/webp,image/gif,application/pdf", label: "Drop certificate photos or PDFs here", onFiles }),
-          progress,
-          a.files.length > 0 && files),
+          h("small", { class: "field" }, "Photos or PDFs shown on this achievement's own page. To also list them under Transcripts & certificates, move them there; they will still show on this page."),
+          filesEditor(a.files, "Drop certificate photos or PDFs here"),
+          a.files.length > 0 && h("div", { class: "row" }, h("button", { type: "button", class: "btn small", onclick: () => {
+            const docs = state.content.documents;
+            docs.push({ id: `${slugify(a.title)}-certificate`, kind: "certificate", title: `${a.title} certificate`, issuer: a.org, date: a.dates, year: a.year, note: "", public: true, achievementId: a.id, files: a.files.splice(0) });
+            state.docIndex = docs.length - 1; markDirty(); toast("Moved to Certificates. Select Save changes to publish."); renderTab();
+          } }, "Move these files to Certificates")),
+          linkedDocs.length > 0 && h("p", { class: "note" }, "Also showing files from: ", linkedDocs.flatMap((d, j) => [j ? ", " : "", h("b", {}, d.title)]), ". Edit them in the Transcripts & certificates tab.")),
         h("div", { class: "box" },
           field("Page address", a, "id", { hint: "Used in the link /achievements/… (lowercase letters, numbers and dashes). Changing it breaks links you've already shared.", onChange: (v) => { a.id = slugify(v); } })));
     }
@@ -404,6 +415,104 @@
         list.unshift({ id: `${slugify(title)}-${Date.now().toString(36)}`, section: "honors", category: "Certificate", title, org: "", dates: "", year: String(new Date().getFullYear()), track: "", summary: "", bullets: [], tags: [], files: [] });
         state.achIndex = 0; markDirty(); renderTab();
       } }, "+ Add achievement")),
+      h("div", { class: "split" }, itemsBox, form)
+    ];
+  }
+
+  // ---------- Transcripts & certificates ----------
+  const DOC_KIND_LABELS = { transcript: "Transcripts", certificate: "Certificates" };
+
+  function suggestedDocuments() {
+    const achIds = new Set(state.content.achievements.map((a) => a.id));
+    const link = (id) => (achIds.has(id) ? id : "");
+    return [
+      { kind: "transcript", title: "Grade 12 transcript (in progress)", issuer: "Dangila General Secondary School", date: "2026 – 2027", year: "Gr 12" },
+      { kind: "transcript", title: "Grade 11 transcript", issuer: "Dangila General Secondary School", date: "2025 – 2026", year: "Gr 11" },
+      { kind: "transcript", title: "Grade 10 transcript", issuer: "Lemlem Academy", date: "2024 – 2025", year: "Gr 10" },
+      { kind: "transcript", title: "Grade 9 transcript", issuer: "Hidasie Dangila School", date: "2023 – 2024", year: "Gr 9" },
+      { kind: "transcript", title: "Grade 8 regional exam result", issuer: "Amen Elementary and Middle School", date: "2022", year: "2022" },
+      { kind: "certificate", title: "Yale Young Global Scholars certificate", issuer: "Yale University", date: "2026", year: "2026", achievementId: link("yale-young-global-scholars-2026") },
+      { kind: "certificate", title: "Yale Entrepreneurial Society Fellowship certificate", issuer: "Yale University", date: "2026", year: "2026", achievementId: link("yale-entrepreneurial-society-2026") },
+      { kind: "certificate", title: "Yale Young African Scholars certificate", issuer: "Yale University", date: "2025", year: "2025", achievementId: link("yale-young-african-scholars-2025") },
+      { kind: "certificate", title: "AddisCoder certificate", issuer: "Addis Ababa Institute of Technology", date: "2023", year: "2023", achievementId: link("addiscoder-2023") },
+      { kind: "certificate", title: "Fundamental Programming certificate", issuer: "Udemy", date: "2025", year: "2025", achievementId: link("udemy-fundamental-programming") },
+      { kind: "certificate", title: "Grade 11 completion certificate", issuer: "Dangila General Secondary School", date: "With High Distinction", year: "Gr 11", achievementId: link("grade-11-certificate") },
+      { kind: "certificate", title: "Grade 9 and 10 completion certificates", issuer: "Hidasie Dangila School and Lemlem Academy", date: "With High Distinction", year: "Gr 9–10", achievementId: link("grade-9-10-certificates") },
+      { kind: "certificate", title: "Grade 8 regional excellence certificate", issuer: "Amen Elementary and Middle School", date: "1st Place Zonal Ranking", year: "2022", achievementId: link("grade-8-regional-excellence") }
+    ].map((d) => ({ id: slugify(d.title), note: "", public: true, achievementId: "", files: [], ...d }));
+  }
+
+  function documentsView() {
+    const list = state.content.documents;
+    state.docIndex = Math.min(state.docIndex, Math.max(0, list.length - 1));
+    const d = list[state.docIndex];
+
+    const add = (kind) => {
+      const title = kind === "transcript" ? "New transcript" : "New certificate";
+      list.push({ id: `${slugify(title)}-${Date.now().toString(36)}`, kind, title, issuer: "", date: "", year: "", note: "", public: true, achievementId: "", files: [] });
+      state.docIndex = list.length - 1; markDirty(); renderTab();
+    };
+
+    const itemsBox = h("div", { class: "list" });
+    for (const kind of Object.keys(DOC_KIND_LABELS)) {
+      const inKind = list.map((x, i) => [x, i]).filter(([x]) => x.kind === kind);
+      itemsBox.append(h("div", { class: "group" }, `${DOC_KIND_LABELS[kind]} (${inKind.length})`));
+      for (const [x, i] of inKind) {
+        itemsBox.append(h("button", { type: "button", class: "item", "aria-current": String(i === state.docIndex), onclick: () => { state.docIndex = i; renderTab(); } },
+          h("span", { "data-doc-title": i }, x.title || "Untitled"),
+          h("small", {}, [x.public === false ? "Hidden" : "", x.files.length ? `${x.files.length} file${x.files.length > 1 ? "s" : ""}` : "No file yet"].filter(Boolean).join(" · "))));
+      }
+      if (!inKind.length) itemsBox.append(h("small", { class: "item" }, "None yet"));
+    }
+
+    let form = h("p", { class: "empty" }, "No documents yet. Add a transcript or certificate, or start with the suggested list.");
+    if (d) {
+      const sameKind = list.map((x, i) => [x, i]).filter(([x]) => x.kind === d.kind).map(([, i]) => i);
+      const pos = sameKind.indexOf(state.docIndex);
+      const moveWithin = (dir) => {
+        const j = sameKind[pos + dir];
+        if (j === undefined) return;
+        [list[state.docIndex], list[j]] = [list[j], list[state.docIndex]];
+        state.docIndex = j; markDirty(); renderTab();
+      };
+      form = h("div", { class: "panel" },
+        h("div", { class: "box" },
+          h("div", { class: "row end" },
+            h("a", { class: "btn small", href: `/documents/${encodeURIComponent(d.id)}`, target: "_blank", rel: "noopener" }, "View page ↗"),
+            h("button", { type: "button", class: "btn small", onclick: () => moveWithin(-1) }, "↑ Move up"),
+            h("button", { type: "button", class: "btn small", onclick: () => moveWithin(1) }, "↓ Move down"),
+            deleteButton("Delete document", () => { d.files.forEach((f) => state.pendingDeletes.add(f.key)); list.splice(state.docIndex, 1); markDirty(); renderTab(); })),
+          h("div", { class: "grid2" },
+            field("Subcategory", d, "kind", { type: "select", options: [["transcript", "Transcript"], ["certificate", "Certificate"]], onChange: renderTab }),
+            field("Title", d, "title", { onChange: (v) => { const el = itemsBox.querySelector(`[data-doc-title="${state.docIndex}"]`); if (el) el.textContent = v || "Untitled"; } }),
+            field("Issued by", d, "issuer", { placeholder: "School or organization" }),
+            field("Date or note", d, "date", { placeholder: "2025 – 2026, or With High Distinction" }),
+            field("Related achievement", d, "achievementId", { type: "select", options: [["", "None"], ...state.content.achievements.map((a) => [a.id, a.title])], hint: "Its files also appear on that achievement's page." })),
+          field("Description", d, "note", { type: "textarea", rows: 2, hint: "Optional, e.g. what the transcript covers or the grading scale." }),
+          check("Show on the public site", d, "public"),
+          d.kind === "transcript" && h("p", { class: "note" }, "Transcripts show grades and personal details. Untick ", h("b", {}, "Show on the public site"), " to keep one visible only to you; its files are then blocked for everyone who isn't logged in as admin.")),
+        h("div", { class: "box" },
+          h("h3", {}, `Files (${d.files.length})`),
+          h("small", { class: "field" }, "Scan or photograph every page. Multi-page transcripts work best as a single PDF."),
+          filesEditor(d.files, d.kind === "transcript" ? "Drop transcript pages or a PDF here" : "Drop the certificate photo or PDF here")),
+        h("div", { class: "box" },
+          field("Page address", d, "id", { hint: "Used in the link /documents/… Changing it breaks links you've already shared.", onChange: (v) => { d.id = slugify(v); } })));
+    }
+
+    return [
+      h("h2", {}, "Transcripts & certificates"),
+      h("p", { class: "intro" }, "Shown on the home page as two groups, each document with its own page. Documents without a file stay off the public site until one is uploaded."),
+      h("div", { class: "row" },
+        h("button", { type: "button", class: "btn", onclick: () => add("transcript") }, "+ Add transcript"),
+        h("button", { type: "button", class: "btn", onclick: () => add("certificate") }, "+ Add certificate"),
+        h("button", { type: "button", class: "btn", onclick: () => {
+          // Skip suggestions already covered: same title, or a certificate already linked to that achievement
+          const have = new Set(list.map((x) => x.title.toLowerCase()));
+          const linkedCerts = new Set(list.filter((x) => x.kind === "certificate" && x.achievementId).map((x) => x.achievementId));
+          const fresh = suggestedDocuments().filter((x) => !have.has(x.title.toLowerCase()) && !(x.achievementId && linkedCerts.has(x.achievementId)));
+          if (!fresh.length) { toast("All suggested documents are already in the list."); return; }
+          list.push(...fresh); markDirty(); toast(`Added ${fresh.length} suggested documents. Upload a file to each, then save.`); renderTab();
+        } }, "Add suggested list")),
       h("div", { class: "split" }, itemsBox, form)
     ];
   }

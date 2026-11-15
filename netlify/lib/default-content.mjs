@@ -107,6 +107,7 @@ export const defaultContent = {
       track: "", summary: "Ranked 1st in the zone in the Grade 8 regional exams, the top performer across the region.", bullets: [], tags: [], files: []
     }
   ],
+  documents: [],
   skills: [
     { id: "lang", group: "Programming languages", items: ["Python (advanced)", "Algorithms", "Data structures", "OOP", "HTML / CSS"] },
     { id: "cs", group: "Computer science foundations", items: ["Algorithms", "Data structures", "Recursion", "Graph theory", "Complexity analysis", "Problem decomposition"] },

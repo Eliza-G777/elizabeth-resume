@@ -1,7 +1,7 @@
-import { json, requireAdmin } from "../lib/auth.mjs";
+import { isAdmin, json, requireAdmin } from "../lib/auth.mjs";
 import { contentStore } from "../lib/store.mjs";
 import { defaultContent } from "../lib/default-content.mjs";
-import { cleanContent } from "../lib/validate.mjs";
+import { cleanContent, publicView } from "../lib/validate.mjs";
 
 const MAX_BODY = 1024 * 1024;
 
@@ -9,8 +9,10 @@ export default async (req) => {
   const store = contentStore();
 
   if (req.method === "GET") {
-    const saved = await store.get("content", { type: "json" });
-    return json(saved ?? defaultContent);
+    const saved = (await store.get("content", { type: "json" })) ?? defaultContent;
+    const content = { ...saved, documents: saved.documents || [] };
+    // The admin sees hidden documents too; everyone else gets the public view.
+    return json(isAdmin(req) ? content : publicView(content));
   }
 
   // PUT: save edits from the admin page
