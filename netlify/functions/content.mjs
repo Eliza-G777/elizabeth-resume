@@ -1,3 +1,4 @@
+// Content js: Elizabeth Taye Resume
 import { isAdmin, json, requireAdmin } from "../lib/auth.mjs";
 import { contentStore } from "../lib/store.mjs";
 import { defaultContent } from "../lib/default-content.mjs";
